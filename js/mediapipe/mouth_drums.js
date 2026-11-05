@@ -3,7 +3,7 @@ export default class MouthDrums {
     constructor() {
         this.context = null;
         this.enabled = false;
-        this.lastPlayedAt = 0;
+        this.lastPlayedAt = -Infinity;
     }
 
     async unlock() {
