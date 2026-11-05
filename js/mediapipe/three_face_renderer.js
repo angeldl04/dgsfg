@@ -724,7 +724,7 @@ export default class ThreeFaceRenderer {
         if (!this.mouthOpening) {
             const geometry = new THREE.CircleGeometry(1, 40);
             const material = new THREE.MeshBasicMaterial({
-                color: 0x090306,
+                color: 0xfffdf8,
                 transparent: true,
                 opacity: 0.96,
                 depthTest: false,
