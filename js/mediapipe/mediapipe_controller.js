@@ -18,6 +18,7 @@ import MPFaceTracker from "./mp_face_tracker.js";
 import MPFaceRenderer from "./mp_face_renderer.js";
 import ThreeFaceRenderer from "./three_face_renderer.js";
 import FaceEvents from "./face_events.js";
+import MouthDrums from "./mouth_drums.js";
 
 const MASK_NAME = "Mascara folklorica";
 
@@ -35,6 +36,13 @@ export async function startFaceFilter(scenePath, { showGui = true } = {}) {
     await tracker.init();
 
     const faceEvents = new FaceEvents();
+
+    // El redoble se dispara una sola vez al detectar la transición boca cerrada -> abierta.
+    // El navegador exige un gesto del usuario para habilitar el audio: primer clic/toque.
+    const mouthDrums = new MouthDrums();
+    faceEvents.addListener((type) => {
+        if (type === "mouthOpen") mouthDrums.play();
+    });
 
     // Ayudas 2D de MediaPipe (malla, puntos, contornos) sobre el video
     const mpRenderer = new MPFaceRenderer(video, canvas);
@@ -110,7 +118,7 @@ export async function startFaceFilter(scenePath, { showGui = true } = {}) {
     update();
 
     // Para depurar desde la consola del navegador.
-    const filter = { webCamera, tracker, faceEvents, mpRenderer, player, faceRenderer, mask };
+    const filter = { webCamera, tracker, faceEvents, mpRenderer, player, faceRenderer, mask, mouthDrums };
     window.faceFilter = filter;
     return filter;
 
