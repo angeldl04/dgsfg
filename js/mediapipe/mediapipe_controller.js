@@ -1,3 +1,4 @@
+import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.181.1/build/three.module.js";
 // Arranca un filtro facial: camara + MediaPipe + escena JSON del editor de three.js.
 //
 // Uso en una pagina HTML:
@@ -61,29 +62,44 @@ export async function startFaceFilter(scenePath, { showGui = true } = {}) {
     // El RootNode completo se ancla al centro de los ojos y sigue la pose de MediaPipe.
     const mask = player.rootNode.getObjectByName(MASK_NAME);
     if (mask) {
-        // Correccion cromatica sutil: recupera saturacion y luminosidad sin
-        // sustituir las texturas ni alterar los colores originales del diseño.
-        const correctedMaterials = new Set();
+        // Correccion de materiales: MeshBasicMaterial conserva las texturas,
+        // pero evita que una iluminacion insuficiente vuelva negra toda la mascara.
+        const correctedMaterials = new Map();
         mask.traverse((object) => {
             if (!object.isMesh || !object.material) return;
-            const materials = Array.isArray(object.material) ? object.material : [object.material];
-            for (const material of materials) {
-                if (correctedMaterials.has(material)) continue;
-                correctedMaterials.add(material);
-                if (material.color && material.color.isColor) {
+            const sourceMaterials = Array.isArray(object.material) ? object.material : [object.material];
+            const outputMaterials = sourceMaterials.map((source) => {
+                if (correctedMaterials.has(source)) return correctedMaterials.get(source);
+
+                const color = source.color?.clone?.() || new THREE.Color(0xffffff);
+                if (source.map) {
+                    // La textura contiene el color del diseño: blanco evita oscurecerla por multiplicacion.
+                    color.set(0xffffff);
+                } else {
                     const hsl = {};
-                    material.color.getHSL(hsl);
-                    material.color.setHSL(
-                        hsl.h,
-                        Math.min(1, hsl.s * 1.10),
-                        Math.min(0.98, hsl.l * 1.035 + 0.012)
-                    );
+                    color.getHSL(hsl);
+                    color.setHSL(hsl.h, Math.min(1, hsl.s * 1.12), Math.min(0.98, hsl.l * 1.28 + 0.08));
                 }
-                if ("envMapIntensity" in material) {
-                    material.envMapIntensity = Math.max(material.envMapIntensity || 1, 1.05);
-                }
-                material.needsUpdate = true;
-            }
+
+                const material = new THREE.MeshBasicMaterial({
+                    color,
+                    map: source.map || null,
+                    alphaMap: source.alphaMap || null,
+                    transparent: source.transparent,
+                    opacity: source.opacity,
+                    alphaTest: source.alphaTest,
+                    side: source.side,
+                    vertexColors: source.vertexColors,
+                    wireframe: source.wireframe,
+                    depthWrite: source.depthWrite,
+                    toneMapped: false
+                });
+                material.name = source.name || "Mascara_ColorCorregido";
+                correctedMaterials.set(source, material);
+                return material;
+            });
+
+            object.material = Array.isArray(object.material) ? outputMaterials : outputMaterials[0];
         });
 
         // Calibracion inicial de los huecos oculares del modelo respecto al punto medio
