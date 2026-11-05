@@ -19,6 +19,13 @@
 </head>
 
 <body>
+    <button id="enable-sound" type="button" style="
+        position:fixed; z-index:10001; top:16px; left:50%; transform:translateX(-50%);
+        padding:12px 18px; border:0; border-radius:999px; background:#171717;
+        color:#fff; font:600 14px Arial,sans-serif; cursor:pointer;
+        box-shadow:0 4px 18px rgba(0,0,0,.3);">
+        Activar sonido de tambores
+    </button>
     <div id="app">
         <video id="video-renderer"></video>
         <canvas id="canvas-renderer"></canvas>
@@ -31,7 +38,13 @@
         // para probar otra sin tocar el codigo: index.html?json=app_hulk.json
         const scene = new URLSearchParams(location.search).get("json") || "app.json";
 
-        startFaceFilter(scene);
+        const filter = await startFaceFilter(scene);
+        const soundButton = document.getElementById("enable-sound");
+        soundButton.addEventListener("click", async () => {
+            const enabled = await filter.mouthDrums.unlock();
+            soundButton.textContent = enabled ? "Sonido activado — abre la boca" : "No se pudo activar el sonido";
+            soundButton.style.background = enabled ? "#176b36" : "#8b1e1e";
+        });
     </script>
 </body>
 
