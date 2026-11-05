@@ -713,6 +713,82 @@ export default class ThreeFaceRenderer {
 
     }
 
+    // Deforma las dos piezas de la mascara folklorica con los blendshapes
+    // de MediaPipe. Las coordenadas de la malla se mantienen en su espacio local.
+    syncMaskDeformation(maskGroup, face) {
+        if (!maskGroup || !face) return;
+
+        const jaw = THREE.MathUtils.clamp(face.jawOpen || 0, 0, 1);
+        const smile = THREE.MathUtils.clamp(face.smile || 0, 0, 1);
+        const blinkL = THREE.MathUtils.clamp(face.blinkLeft || 0, 0, 1);
+        const blinkR = THREE.MathUtils.clamp(face.blinkRight || 0, 0, 1);
+        const brow = THREE.MathUtils.clamp(face.browRaise || 0, 0, 1);
+
+        // Cache de la geometria original: evita acumular deformaciones frame a frame.
+        maskGroup.traverse((object) => {
+            if (!object.isMesh || !object.geometry?.attributes?.position) return;
+
+            const geometry = object.geometry;
+            const position = geometry.attributes.position;
+            if (!geometry.userData.maskRestPositions) {
+                geometry.userData.maskRestPositions = new Float32Array(position.array);
+                geometry.computeBoundingBox();
+                const box = geometry.boundingBox;
+                geometry.userData.maskBounds = {
+                    minX: box.min.x, maxX: box.max.x,
+                    minY: box.min.y, maxY: box.max.y,
+                    minZ: box.min.z, maxZ: box.max.z
+                };
+            }
+
+            const rest = geometry.userData.maskRestPositions;
+            const b = geometry.userData.maskBounds;
+            const width = Math.max(0.001, b.maxX - b.minX);
+            const height = Math.max(0.001, b.maxY - b.minY);
+            const centerX = (b.minX + b.maxX) * 0.5;
+            const centerY = (b.minY + b.maxY) * 0.5;
+
+            for (let i = 0; i < position.count; i++) {
+                const k = i * 3;
+                const x = rest[k];
+                const y = rest[k + 1];
+                const z = rest[k + 2];
+
+                const nx = (x - centerX) / (width * 0.5);
+                const ny = (y - centerY) / (height * 0.5);
+
+                // Parte inferior: acompaña la apertura de la mandibula.
+                const lower = THREE.MathUtils.smoothstep(-ny, 0.02, 0.72);
+                const mouth = Math.exp(-((nx / 0.48) ** 2) - (((ny + 0.34) / 0.30) ** 2));
+                const cheekL = Math.exp(-(((nx + 0.58) / 0.34) ** 2) - (((ny + 0.02) / 0.42) ** 2));
+                const cheekR = Math.exp(-(((nx - 0.58) / 0.34) ** 2) - (((ny + 0.02) / 0.42) ** 2));
+                const eyeL = Math.exp(-(((nx + 0.31) / 0.20) ** 2) - (((ny - 0.22) / 0.18) ** 2));
+                const eyeR = Math.exp(-(((nx - 0.31) / 0.20) ** 2) - (((ny - 0.22) / 0.18) ** 2));
+                const browZone = Math.exp(-((Math.abs(nx) / 0.72) ** 4) - (((ny - 0.52) / 0.20) ** 2));
+
+                const blink = eyeL * blinkL + eyeR * blinkR;
+                const smileZone = Math.min(1, cheekL + cheekR);
+
+                position.array[k] = x + Math.sign(nx) * smile * smileZone * width * 0.018;
+                position.array[k + 1] =
+                    y
+                    - jaw * lower * height * 0.075
+                    + smile * smileZone * height * 0.025
+                    + brow * browZone * height * 0.018
+                    + blink * height * 0.012;
+                position.array[k + 2] =
+                    z
+                    + jaw * (lower * 0.025 + mouth * 0.018)
+                    + smile * smileZone * 0.012
+                    - blink * 0.008;
+            }
+
+            position.needsUpdate = true;
+            geometry.computeVertexNormals();
+            geometry.computeBoundingSphere();
+        });
+    }
+
     syncFaceMesh(mesh) {
 
         if (!mesh || !this.landmarks || this.landmarks.length === 0)
