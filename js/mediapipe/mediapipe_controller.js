@@ -89,6 +89,7 @@ export async function startFaceFilter(scenePath, { showGui = true } = {}) {
         faceRenderer.drawIrises(landmarks);
         faceRenderer.drawPoints(landmarks);
         if (mask) faceRenderer.syncMaskDeformation(mask, faceEvents);
+        faceRenderer.syncMouthOpening(landmarks, faceEvents.jawOpen);
 
         // La escena sigue la cabeza (solo se oculta la mascara si no hay cara).
         const detected = tracker.getFaceCount() > 0;
