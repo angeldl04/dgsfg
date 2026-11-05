@@ -19,7 +19,7 @@ import MPFaceRenderer from "./mp_face_renderer.js";
 import ThreeFaceRenderer from "./three_face_renderer.js";
 import FaceEvents from "./face_events.js";
 
-const MASK_NAME = "mesh_0";
+const MASK_NAME = "Mascara folklorica";
 
 export async function startFaceFilter(scenePath, { showGui = true } = {}) {
 
@@ -48,15 +48,17 @@ export async function startFaceFilter(scenePath, { showGui = true } = {}) {
     const faceRenderer = new ThreeFaceRenderer(video, player);
     faceRenderer.alignCamera();
 
-    // La mascara sale del grupo de la escena: se coloca vertice a vertice en la cara.
-    // Sus hijos (si alguien los emparento en el editor) se quedan en la escena
-    // para que sigan la cabeza como el resto de objetos.
+    // La mascara folklorica es un grupo con dos mallas (pieza superior e inferior).
+    // Se conserva dentro de la escena para respetar sus materiales y transformaciones.
+    // El RootNode completo se ancla al centro de los ojos y sigue la pose de MediaPipe.
     const mask = player.rootNode.getObjectByName(MASK_NAME);
     if (mask) {
-        for (const child of [...mask.children]) mask.parent.attach(child);
-        faceRenderer.faceGroup.add(mask);
+        // Calibracion inicial de los huecos oculares del modelo respecto al punto medio
+        // entre los landmarks 33 y 263. No cambia el nombre ni la estructura de app.json.
+        mask.position.x += 0.012;
+        mask.position.y -= 0.106;
     } else {
-        console.warn(`La escena no tiene un objeto "${MASK_NAME}": no habra mascara facial.`);
+        console.warn(`No se encontro el grupo "${MASK_NAME}" dentro de app.json.`);
     }
 
     const settings = { headScale: 1 };
@@ -78,7 +80,7 @@ export async function startFaceFilter(scenePath, { showGui = true } = {}) {
         faceRenderer.drawContours(landmarks);
         faceRenderer.drawIrises(landmarks);
         faceRenderer.drawPoints(landmarks);
-        if (mask) faceRenderer.syncFaceMesh(mask);
+        if (mask) faceRenderer.syncMaskDeformation(mask, faceEvents);
 
         // La escena sigue la cabeza (solo se oculta la mascara si no hay cara).
         const detected = tracker.getFaceCount() > 0;
