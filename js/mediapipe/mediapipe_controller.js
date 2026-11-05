@@ -61,6 +61,31 @@ export async function startFaceFilter(scenePath, { showGui = true } = {}) {
     // El RootNode completo se ancla al centro de los ojos y sigue la pose de MediaPipe.
     const mask = player.rootNode.getObjectByName(MASK_NAME);
     if (mask) {
+        // Correccion cromatica sutil: recupera saturacion y luminosidad sin
+        // sustituir las texturas ni alterar los colores originales del diseño.
+        const correctedMaterials = new Set();
+        mask.traverse((object) => {
+            if (!object.isMesh || !object.material) return;
+            const materials = Array.isArray(object.material) ? object.material : [object.material];
+            for (const material of materials) {
+                if (correctedMaterials.has(material)) continue;
+                correctedMaterials.add(material);
+                if (material.color && material.color.isColor) {
+                    const hsl = {};
+                    material.color.getHSL(hsl);
+                    material.color.setHSL(
+                        hsl.h,
+                        Math.min(1, hsl.s * 1.10),
+                        Math.min(0.98, hsl.l * 1.035 + 0.012)
+                    );
+                }
+                if ("envMapIntensity" in material) {
+                    material.envMapIntensity = Math.max(material.envMapIntensity || 1, 1.05);
+                }
+                material.needsUpdate = true;
+            }
+        });
+
         // Calibracion inicial de los huecos oculares del modelo respecto al punto medio
         // entre los landmarks 33 y 263. No cambia el nombre ni la estructura de app.json.
         mask.position.x += 0.012;
