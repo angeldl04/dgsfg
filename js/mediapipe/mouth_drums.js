@@ -1,68 +1,81 @@
-// Redoble de tambores sintetizado con Web Audio (no requiere archivos externos).
+// Percusion sintetizada con Web Audio. Se activa con el boton de la interfaz.
 export default class MouthDrums {
     constructor() {
         this.context = null;
         this.enabled = false;
         this.lastPlayedAt = 0;
-        this.onUnlock = () => this.unlock();
-        window.addEventListener("pointerdown", this.onUnlock, { passive: true });
-        window.addEventListener("keydown", this.onUnlock);
     }
 
     async unlock() {
-        if (this.enabled) return;
         const AudioContextClass = window.AudioContext || window.webkitAudioContext;
         if (!AudioContextClass) {
             console.warn("Este navegador no soporta Web Audio.");
-            return;
+            return false;
         }
-        this.context ||= new AudioContextClass();
         try {
-            await this.context.resume();
+            this.context ||= new AudioContextClass();
+            if (this.context.state !== "running") await this.context.resume();
             this.enabled = this.context.state === "running";
-            if (this.enabled) {
-                window.removeEventListener("pointerdown", this.onUnlock);
-                window.removeEventListener("keydown", this.onUnlock);
-                console.info("Sonido de tambores activado.");
-            }
+            return this.enabled;
         } catch (error) {
-            console.warn("No se pudo activar el audio:", error);
+            console.error("No se pudo activar el audio:", error);
+            return false;
         }
     }
 
     play() {
-        if (!this.enabled || !this.context || this.context.state !== "running") return;
+        if (!this.enabled || !this.context || this.context.state !== "running") return false;
         const now = this.context.currentTime;
-        // Evita dobles disparos por pequeñas oscilaciones del detector.
-        if (now - this.lastPlayedAt < 0.45) return;
+        if (now - this.lastPlayedAt < 0.55) return false;
         this.lastPlayedAt = now;
 
-        // Redoble corto de cinco golpes de tom grave, con caída de tono y volumen.
-        const hits = [0, 0.105, 0.205, 0.300, 0.390, 0.475];
-        hits.forEach((offset, index) => {
+        // Buffer de ruido corto para el golpe de parche + tono grave para el cuerpo del tambor.
+        const duration = 0.22;
+        const buffer = this.context.createBuffer(1, Math.floor(this.context.sampleRate * duration), this.context.sampleRate);
+        const data = buffer.getChannelData(0);
+        for (let i = 0; i < data.length; i++) {
+            const fade = Math.exp(-i / (this.context.sampleRate * 0.045));
+            data[i] = (Math.random() * 2 - 1) * fade;
+        }
+
+        [0, 0.105, 0.205, 0.305, 0.405, 0.505].forEach((offset, index) => {
             const start = now + offset;
-            const osc = this.context.createOscillator();
-            const gain = this.context.createGain();
-            const filter = this.context.createBiquadFilter();
-            osc.type = "sine";
-            osc.frequency.setValueAtTime(118 - index * 7, start);
-            osc.frequency.exponentialRampToValueAtTime(48, start + 0.16);
-            filter.type = "lowpass";
-            filter.frequency.setValueAtTime(520, start);
-            gain.gain.setValueAtTime(0.0001, start);
-            gain.gain.exponentialRampToValueAtTime(0.42 - index * 0.035, start + 0.008);
-            gain.gain.exponentialRampToValueAtTime(0.0001, start + 0.19);
-            osc.connect(filter);
-            filter.connect(gain);
-            gain.connect(this.context.destination);
-            osc.start(start);
-            osc.stop(start + 0.2);
+            const volume = 0.72 - index * 0.075;
+
+            const noise = this.context.createBufferSource();
+            noise.buffer = buffer;
+            const noiseFilter = this.context.createBiquadFilter();
+            noiseFilter.type = "bandpass";
+            noiseFilter.frequency.value = 850 + index * 90;
+            noiseFilter.Q.value = 0.8;
+            const noiseGain = this.context.createGain();
+            noiseGain.gain.setValueAtTime(0.0001, start);
+            noiseGain.gain.exponentialRampToValueAtTime(volume * 0.42, start + 0.004);
+            noiseGain.gain.exponentialRampToValueAtTime(0.0001, start + 0.13);
+            noise.connect(noiseFilter);
+            noiseFilter.connect(noiseGain);
+            noiseGain.connect(this.context.destination);
+            noise.start(start);
+            noise.stop(start + 0.14);
+
+            const drum = this.context.createOscillator();
+            const drumGain = this.context.createGain();
+            drum.type = "sine";
+            drum.frequency.setValueAtTime(105 - index * 5, start);
+            drum.frequency.exponentialRampToValueAtTime(42, start + 0.17);
+            drumGain.gain.setValueAtTime(0.0001, start);
+            drumGain.gain.exponentialRampToValueAtTime(volume * 0.8, start + 0.006);
+            drumGain.gain.exponentialRampToValueAtTime(0.0001, start + 0.2);
+            drum.connect(drumGain);
+            drumGain.connect(this.context.destination);
+            drum.start(start);
+            drum.stop(start + 0.21);
         });
+        return true;
     }
 
     dispose() {
-        window.removeEventListener("pointerdown", this.onUnlock);
-        window.removeEventListener("keydown", this.onUnlock);
         this.context?.close();
+        this.enabled = false;
     }
 }
