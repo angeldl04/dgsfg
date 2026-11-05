@@ -16,6 +16,12 @@ export default class MouthDrums {
             this.context ||= new AudioContextClass();
             if (this.context.state !== "running") await this.context.resume();
             this.enabled = this.context.state === "running";
+            if (this.enabled) {
+                // Reproduce un redoble de prueba dentro del gesto del usuario.
+                // Así confirmamos que Web Audio quedó desbloqueado antes de detectar la boca.
+                this.lastPlayedAt = -Infinity;
+                this.play();
+            }
             return this.enabled;
         } catch (error) {
             console.error("No se pudo activar el audio:", error);
