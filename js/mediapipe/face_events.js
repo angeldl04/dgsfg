@@ -7,7 +7,7 @@ const average = (a, b) => (a + b) / 2;
 // Cada trigger se activa cuando el valor supera `enter` y se desactiva cuando
 // baja de `exit` (histeresis), para no disparar eventos repetidos en el limite.
 export const DEFAULT_TRIGGERS = [
-    { on: "mouthOpen", off: "mouthClose", value: (face) => face.jawOpen, enter: 0.35, exit: 0.2 },
+    { on: "mouthOpen", off: "mouthClose", value: (face) => face.jawOpen, enter: 0.22, exit: 0.12 },
     { on: "smileStart", off: "smileEnd", value: (face) => face.smile, enter: 0.5, exit: 0.3 },
     { on: "blink", off: "blinkEnd", value: (face) => face.blink, enter: 0.5, exit: 0.3 },
     { on: "browRaise", off: "browLower", value: (face) => face.browRaise, enter: 0.5, exit: 0.3 },
