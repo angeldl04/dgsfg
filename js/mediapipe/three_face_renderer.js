@@ -713,6 +713,58 @@ export default class ThreeFaceRenderer {
 
     }
 
+    // Dibuja una abertura oscura sobre la boca real para que la apertura sea visible
+    // incluso cuando el modelo de mascara no tiene una mandibula articulada.
+    syncMouthOpening(landmarks, jawOpen = 0) {
+        if (!landmarks || landmarks.length <= 291) {
+            if (this.mouthOpening) this.mouthOpening.visible = false;
+            return;
+        }
+
+        if (!this.mouthOpening) {
+            const geometry = new THREE.CircleGeometry(1, 40);
+            const material = new THREE.MeshBasicMaterial({
+                color: 0x090306,
+                transparent: true,
+                opacity: 0.96,
+                depthTest: false,
+                depthWrite: false,
+                side: THREE.DoubleSide
+            });
+            this.mouthOpening = new THREE.Mesh(geometry, material);
+            this.mouthOpening.name = "MouthOpeningVisual";
+            this.mouthOpening.renderOrder = 10000;
+            this.faceGroup.add(this.mouthOpening);
+        }
+
+        const aspect = this.video.videoWidth / this.video.videoHeight;
+        const point = (index) => {
+            const p = landmarks[index];
+            return new THREE.Vector3(
+                (p.x - 0.5) * aspect,
+                -(p.y - 0.5),
+                -p.z * aspect
+            );
+        };
+
+        const left = point(61);
+        const right = point(291);
+        const upper = point(13);
+        const lower = point(14);
+        const center = upper.clone().add(lower).multiplyScalar(0.5);
+        const mouthWidth = left.distanceTo(right);
+        const mouthGap = upper.distanceTo(lower);
+        const openness = THREE.MathUtils.clamp(jawOpen, 0, 1);
+
+        this.mouthOpening.position.set(center.x, center.y, center.z + 0.035);
+        this.mouthOpening.scale.set(
+            Math.max(0.001, mouthWidth * 0.43),
+            Math.max(0.001, mouthGap * 0.78) * openness,
+            1
+        );
+        this.mouthOpening.visible = openness > 0.16;
+    }
+
     // Deforma las dos piezas de la mascara folklorica con los blendshapes
     // de MediaPipe. Las coordenadas de la malla se mantienen en su espacio local.
     syncMaskDeformation(maskGroup, face) {
